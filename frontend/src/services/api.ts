@@ -1,7 +1,8 @@
 // API service for connecting to Python backend
 // This file provides a structured way to make API calls to your Python backend
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
 interface ApiResponse<T> {
   data: T;
@@ -15,45 +16,48 @@ class F1ApiService {
     this.baseUrl = baseUrl;
   }
 
-  private async fetchData<T>(endpoint: string): Promise<ApiResponse<T>> {
+  async fetchData<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`);
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
       }
-      
+
       const data = await response.json();
       return { data };
     } catch (error) {
       console.error(`Error fetching ${endpoint}:`, error);
-      return { 
-        data: {} as T, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        data: {} as T,
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
   // Latest race results
   async getLatestResults() {
-    return this.fetchData('/results/latest');
+    return this.fetchData("/results/latest");
   }
 
   // Driver standings
   async getDriverStandings(season?: number) {
-    const seasonParam = season ? `?season=${season}` : '';
+    const seasonParam = season ? `?season=${season}` : "";
     return this.fetchData(`/standings/drivers${seasonParam}`);
   }
 
   // Constructor standings
   async getConstructorStandings(season?: number) {
-    const seasonParam = season ? `?season=${season}` : '';
+    const seasonParam = season ? `?season=${season}` : "";
     return this.fetchData(`/standings/constructors${seasonParam}`);
   }
 
   // Race calendar
   async getRaceCalendar(season?: number) {
-    const seasonParam = season ? `?season=${season}` : '';
+    const seasonParam = season ? `?season=${season}` : "";
     return this.fetchData(`/calendar${seasonParam}`);
   }
 
@@ -64,7 +68,7 @@ class F1ApiService {
 
   // Lap records
   async getLapRecords(circuitId?: string) {
-    const circuitParam = circuitId ? `?circuit=${circuitId}` : '';
+    const circuitParam = circuitId ? `?circuit=${circuitId}` : "";
     return this.fetchData(`/records/laps${circuitParam}`);
   }
 
@@ -76,6 +80,12 @@ class F1ApiService {
   // Race details
   async getRaceDetails(season: number, round: number) {
     return this.fetchData(`/races/${season}/${round}`);
+  }
+
+  // Stats overview
+  async getStatsOverview(season?: number) {
+    const seasonParam = season ? `?season=${season}` : "";
+    return this.fetchData(`/stats/overview${seasonParam}`);
   }
 }
 
