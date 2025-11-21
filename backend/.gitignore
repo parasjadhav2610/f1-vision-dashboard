@@ -8,7 +8,7 @@ venv/
 env/
 ENV/
 .venv
-
+.requirements.txt
 # FastF1 Cache
 cache/
 *.cache

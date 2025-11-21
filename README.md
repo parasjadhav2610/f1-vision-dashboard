@@ -1,14 +1,14 @@
 # F1 Vision Dashboard
 
-A comprehensive Formula 1 data visualization dashboard built with React (TypeScript) frontend and Python (Flask) backend, powered by FastF1 library.
+The F1 Data Insights project aims leverages the FastF1 Python API to provide users with comprehensive Formula 1 data with strong emphasis on DevSecOps practices.
 
 ## Features
 
-- 📊 **Driver Standings** - Current championship standings with points and wins
-- 🏁 **Latest Race Results** - Results from the most recent Grand Prix
-- 📅 **Race Calendar** - Complete season schedule with race dates and locations
-- 📈 **Statistics Overview** - Key F1 statistics including total races, championships, active drivers, and fastest lap times
-- 🎨 **Modern UI** - Beautiful, responsive design with smooth animations
+- **Driver Standings** - Current championship standings with points and wins
+- **Latest Race Results** - Results from the most recent Grand Prix
+- **Race Calendar** - Complete season schedule with race dates and locations
+- **Statistics Overview** - Key F1 statistics including total races, championships, active drivers, and fastest lap times
+- **Modern UI** - Beautiful, responsive design with smooth animations
 
 ## Tech Stack
 
@@ -20,34 +20,29 @@ A comprehensive Formula 1 data visualization dashboard built with React (TypeScr
 - Tailwind CSS for styling
 - Shadcn/ui components
 - React Router for navigation
+- Node.js 18+
 
 ### Backend
 
-- Python 3.11+
-- Flask for REST API
-- FastF1 for F1 data
-- Flask-CORS for cross-origin requests
+- Python 3.11
+- Flask for REST API and Flask-CORS for cross-origin requests
+- FastF1 API for F1 data 
 - Pandas for data manipulation
 
-## Prerequisites
 
-- Node.js 18+ and npm/yarn/bun
-- Python 3.11+
-- pip (Python package manager)
-
-## Installation
+## How to run Without DOCKER
 
 ### Backend Setup
 
 1. Navigate to the backend directory:
 
-```bash
+```
 cd backend
 ```
 
 2. Create a virtual environment (recommended):
 
-```bash
+```
 python -m venv venv
 ```
 
@@ -64,13 +59,13 @@ python -m venv venv
 
 4. Install dependencies:
 
-```bash
+```
 pip install -r requirements.txt
 ```
 
 5. Run the backend server:
 
-```bash
+```
 python app.py
 ```
 
@@ -82,13 +77,13 @@ The backend will start on `http://localhost:8000`
 
 1. Navigate to the frontend directory:
 
-```bash
+```
 cd frontend
 ```
 
 2. Install dependencies:
 
-```bash
+```
 npm install
 # or
 yarn install
@@ -96,15 +91,7 @@ yarn install
 bun install
 ```
 
-3. Create a `.env` file in the frontend directory (optional):
-
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
-
-If you don't create this file, the frontend will default to `http://localhost:8000/api`
-
-4. Start the development server:
+3. Start the development server:
 
 ```bash
 npm run dev
@@ -168,36 +155,7 @@ The frontend uses Vite for hot module replacement. Changes will be reflected imm
 
 This application uses the [FastF1](https://github.com/theOehrly/Fast-F1) library, which provides access to Formula 1 timing data and results. FastF1 uses the official F1 API and Ergast API to fetch data.
 
-## Troubleshooting
-
-### Backend Issues
-
-1. **FastF1 cache issues**: If you encounter cache-related errors, try deleting the `backend/cache` directory and let FastF1 rebuild it.
-
-2. **Port already in use**: If port 8000 is already in use, you can change it in `backend/app.py`:
-
-   ```python
-   app.run(host='0.0.0.0', port=8000, debug=True)
-   ```
-
-3. **Missing dependencies**: Make sure all dependencies are installed:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Frontend Issues
-
-1. **CORS errors**: Make sure the backend is running and CORS is enabled (which it is by default).
-
-2. **API connection errors**: Check that the backend is running on the correct port and the `VITE_API_BASE_URL` environment variable is set correctly.
-
-3. **Build errors**: Clear node_modules and reinstall:
-   ```bash
-   rm -rf node_modules
-   npm install
-   ```
-
-## Docker Deployment
+## How to Run with Docker
 
 ### Backend
 
@@ -209,13 +167,6 @@ docker build -t f1-backend .
 docker run -p 8000:8000 f1-backend
 ```
 
-## License
-
-This project is open source and available under the MIT License.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Acknowledgments
 
