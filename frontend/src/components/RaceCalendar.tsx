@@ -2,17 +2,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Flag, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { f1Api } from "@/services/api";
+import { RaceCalendarItem, RaceCalendarResponse } from "@/types/race";
 
 const RaceCalendar = () => {
-  const { data, isLoading, error } = useQuery({
+  const navigate = useNavigate();
+  
+  const { data, isLoading, error } = useQuery<RaceCalendarResponse>({
     queryKey: ["raceCalendar"],
-    queryFn: async () => {
+    queryFn: async (): Promise<RaceCalendarResponse> => {
       const response = await f1Api.getRaceCalendar();
       if (response.error) {
         throw new Error(response.error);
       }
-      return response.data;
+      return response.data as RaceCalendarResponse;
     },
   });
 
@@ -95,13 +99,20 @@ const RaceCalendar = () => {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {calendar.map((race: any) => (
+            {calendar.map((race: RaceCalendarItem) => (
               <Card
                 key={race.round}
-                className={`bg-card border-border transition-all duration-300 group ${
+                onClick={() => {
+                  // Navigate to race detail page with season and round
+                  const season = data?.season || new Date().getFullYear();
+                  navigate(`/race/${season}/${race.round}`);
+                }}
+                className={`bg-card border-border transition-all duration-300 group cursor-pointer ${
                   race.status === "upcoming"
-                    ? "hover:border-primary/50 hover:shadow-racing"
-                    : "opacity-60"
+                    ? "hover:border-primary/50 hover:shadow-racing hover:scale-[1.02]"
+                    : race.status === "completed"
+                    ? "hover:border-primary/30 hover:shadow-lg hover:scale-[1.02]"
+                    : "opacity-60 hover:opacity-80"
                 }`}
               >
                 <CardHeader>
