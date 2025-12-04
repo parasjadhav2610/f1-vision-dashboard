@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import fastf1
+from fastf1.ergast import Ergast
 import pandas as pd
 from datetime import datetime
 import traceback
 import logging
 import os
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,8 +25,45 @@ if not os.path.exists(cache_dir):
 
 fastf1.Cache.enable_cache(cache_dir)
 
+# Rate limiting helper to avoid hitting Ergast API limits
+class RateLimiter:
+    def __init__(self, calls_per_hour=150):
+        self.calls_per_hour = calls_per_hour
+        self.calls = []
+    
+    def can_proceed(self):
+        """Check if we can make another API call"""
+        now = time.time()
+        # Remove calls older than 1 hour
+        self.calls = [call_time for call_time in self.calls if now - call_time < 3600]
+        return len(self.calls) < self.calls_per_hour
+    
+    def record_call(self):
+        """Record that we made an API call"""
+        self.calls.append(time.time())
+
+rate_limiter = RateLimiter(calls_per_hour=150)  # Conservative limit
+
 # Default season (current year)
 CURRENT_YEAR = datetime.now().year
+
+def get_active_season():
+    """Get the most recent F1 season with completed races"""
+    current_year = datetime.now().year
+    # Try current year first
+    for year in [current_year, current_year - 1, current_year - 2]:
+        try:
+            schedule = fastf1.get_event_schedule(year)
+            if schedule is not None and not schedule.empty:
+                completed = schedule[schedule['EventDate'] < pd.Timestamp.now()]
+                if not completed.empty:
+                    logger.info(f"Using season {year} (has {len(completed)} completed races)")
+                    return year
+        except Exception as e:
+            logger.warning(f"Could not check season {year}: {str(e)}")
+            continue
+    # Fallback to current year if nothing found
+    return current_year
 
 
 @app.route('/')
@@ -46,7 +85,7 @@ def home():
 def get_latest_results():
     """Get the latest race results"""
     try:
-        season = request.args.get('season', CURRENT_YEAR, type=int)
+        season = request.args.get('season', get_active_season(), type=int)
         
         # Get schedule for the season
         schedule = fastf1.get_event_schedule(season)
@@ -80,8 +119,12 @@ def get_latest_results():
                 elif 'BestLapTime' in result.index:
                     fastest_lap = str(result['BestLapTime']) if pd.notna(result['BestLapTime']) else None
                 
+                # Handle NaN values in position
+                position = result.get('Position')
+                position_int = int(position) if pd.notna(position) and position != '' else 0
+                
                 formatted_results.append({
-                    "position": int(result['Position']),
+                    "position": position_int,
                     "driver": result.get('Abbreviation', result.get('Driver', 'N/A')),
                     "driver_full_name": result.get('FullName', result.get('Driver', 'N/A')),
                     "team": result.get('TeamName', result.get('Team', 'N/A')),
@@ -125,145 +168,46 @@ def get_latest_results():
 
 @app.route('/api/standings/drivers')
 def get_driver_standings():
-    """Get driver championship standings using FastF1 only"""
+    """Get driver championship standings using FastF1 Ergast interface"""
     try:
-        season = request.args.get('season', CURRENT_YEAR, type=int)
+        season = request.args.get('season', get_active_season(), type=int)
         
-        logger.info(f"Fetching driver standings for season {season} using FastF1")
+        logger.info(f"Fetching driver standings for season {season} using FastF1 Ergast")
         
-        # Get race schedule for the season
-        try:
-            schedule = fastf1.get_event_schedule(season)
-            if schedule is None or schedule.empty:
-                return jsonify({
-                    "season": season,
-                    "standings": [],
-                    "error": f"No schedule found for season {season}"
-                }), 404
-        except Exception as schedule_error:
-            logger.error(f"Error getting schedule: {str(schedule_error)}")
+        ergast = Ergast()
+        standings = ergast.get_driver_standings(season=season)
+        
+        if standings.content and not standings.content[0].empty:
+            df = standings.content[0]
+            
+            formatted_standings = []
+            for _, row in df.iterrows():
+                # Handle constructor names (it's a list)
+                teams = row.get('constructorNames', [])
+                team_name = teams[0] if isinstance(teams, list) and len(teams) > 0 else "N/A"
+                if isinstance(teams, str): # Fallback if it's a string
+                    team_name = teams
+                
+                formatted_standings.append({
+                    "position": int(row.get('position', 0)),
+                    "driver": row.get('driverCode', 'N/A'),
+                    "driver_full_name": f"{row.get('givenName', '')} {row.get('familyName', '')}".strip(),
+                    "team": team_name,
+                    "points": float(row.get('points', 0)),
+                    "wins": int(row.get('wins', 0)),
+                })
+            
             return jsonify({
                 "season": season,
-                "standings": [],
-                "error": f"Could not get race schedule: {str(schedule_error)}"
-            }), 500
-        
-        # Get completed races only
-        current_date = pd.Timestamp.now()
-        completed_races = schedule[schedule['EventDate'] < current_date].copy()
-        
-        if completed_races.empty:
-            return jsonify({
-                "season": season,
-                "standings": [],
-                "error": f"No completed races found for season {season}"
-            }), 404
-        
-        # Initialize driver data structures
-        driver_stats = {}  # {driver_abbr: {'points': 0, 'wins': 0, 'name': '', 'team': ''}}
-        
-        # Process each completed race
-        races_processed = 0
-        races_failed = 0
-        max_races_to_process = min(len(completed_races), 24)  # Limit to prevent timeout
-        
-        logger.info(f"Processing {max_races_to_process} completed races for season {season}")
-        
-        for idx, event in completed_races.tail(max_races_to_process).iterrows():
-            try:
-                round_number = event['RoundNumber']
-                event_name = event.get('EventName', f'Round {round_number}')
-                
-                logger.debug(f"Loading race {round_number}: {event_name}")
-                
-                # Load race session (only results, not full telemetry)
-                session = fastf1.get_session(season, round_number, 'R')
-                session.load(laps=False, telemetry=False, weather=False, messages=False)
-                
-                # Get results
-                if hasattr(session, 'results') and not session.results.empty:
-                    for _, result in session.results.iterrows():
-                        try:
-                            driver_abbr = result.get('Abbreviation', '')
-                            if not driver_abbr or pd.isna(driver_abbr):
-                                continue
-                            
-                            driver_name = result.get('FullName', driver_abbr)
-                            team_name = result.get('TeamName', 'N/A')
-                            points = float(result.get('Points', 0)) if pd.notna(result.get('Points')) else 0.0
-                            position = int(result.get('Position', 0)) if pd.notna(result.get('Position')) else 0
-                            
-                            # Initialize driver if not seen before
-                            if driver_abbr not in driver_stats:
-                                driver_stats[driver_abbr] = {
-                                    'points': 0,
-                                    'wins': 0,
-                                    'name': driver_name,
-                                    'team': team_name
-                                }
-                            
-                            # Update stats
-                            driver_stats[driver_abbr]['points'] += points
-                            if position == 1:
-                                driver_stats[driver_abbr]['wins'] += 1
-                            
-                            # Update name/team if we have better data (use most recent)
-                            if driver_name and driver_name != driver_abbr:
-                                driver_stats[driver_abbr]['name'] = driver_name
-                            if team_name and team_name != 'N/A':
-                                driver_stats[driver_abbr]['team'] = team_name
-                                
-                        except Exception as result_error:
-                            logger.warning(f"Error processing result for {event_name}: {str(result_error)}")
-                            continue
-                    
-                    races_processed += 1
-                    logger.debug(f"Successfully processed race {round_number}")
-                else:
-                    logger.warning(f"No results found for race {round_number}: {event_name}")
-                    races_failed += 1
-                    
-            except Exception as race_error:
-                logger.warning(f"Error loading race {event.get('EventName', 'Unknown')}: {str(race_error)}")
-                races_failed += 1
-                continue
-        
-        # Check if we got any data
-        if not driver_stats:
-            return jsonify({
-                "season": season,
-                "standings": [],
-                "error": f"Could not extract driver data from {races_processed} processed races"
-            }), 500
-        
-        # Sort drivers by points (descending)
-        sorted_drivers = sorted(
-            driver_stats.items(), 
-            key=lambda x: (x[1]['points'], x[1]['wins']), 
-            reverse=True
-        )
-        
-        # Format standings
-        formatted_standings = []
-        for position, (driver_abbr, stats) in enumerate(sorted_drivers, start=1):
-            formatted_standings.append({
-                "position": position,
-                "driver": driver_abbr,
-                "driver_full_name": stats['name'],
-                "team": stats['team'],
-                "points": stats['points'],
-                "wins": stats['wins'],
+                "standings": formatted_standings
             })
-        
-        logger.info(f"Successfully calculated standings from {races_processed} races ({races_failed} failed)")
-        
-        return jsonify({
-            "season": season,
-            "standings": formatted_standings,
-            "races_processed": races_processed,
-            "total_races": len(completed_races)
-        })
-        
+        else:
+            return jsonify({
+                "season": season,
+                "standings": [],
+                "error": f"No standings found for season {season}"
+            }), 404
+            
     except Exception as e:
         logger.error(f"Error in get_driver_standings: {str(e)}")
         logger.error(traceback.format_exc())
@@ -275,128 +219,37 @@ def get_driver_standings():
 
 @app.route('/api/standings/constructors')
 def get_constructor_standings():
-    """Get constructor championship standings using FastF1 only"""
+    """Get constructor championship standings using FastF1 Ergast interface"""
     try:
-        season = request.args.get('season', CURRENT_YEAR, type=int)
+        season = request.args.get('season', get_active_season(), type=int)
         
-        logger.info(f"Fetching constructor standings for season {season} using FastF1")
+        logger.info(f"Fetching constructor standings for season {season} using FastF1 Ergast")
         
-        # Get race schedule for the season
-        try:
-            schedule = fastf1.get_event_schedule(season)
-            if schedule is None or schedule.empty:
-                return jsonify({
-                    "season": season,
-                    "standings": [],
-                    "error": f"No schedule found for season {season}"
-                }), 404
-        except Exception as schedule_error:
-            logger.error(f"Error getting schedule: {str(schedule_error)}")
+        ergast = Ergast()
+        standings = ergast.get_constructor_standings(season=season)
+        
+        if standings.content and not standings.content[0].empty:
+            df = standings.content[0]
+            
+            formatted_standings = []
+            for _, row in df.iterrows():
+                formatted_standings.append({
+                    "position": int(row.get('position', 0)),
+                    "constructor": row.get('constructorName', 'N/A'),
+                    "points": float(row.get('points', 0)),
+                    "wins": int(row.get('wins', 0)),
+                })
+            
             return jsonify({
                 "season": season,
-                "standings": [],
-                "error": f"Could not get race schedule: {str(schedule_error)}"
-            }), 500
-        
-        # Get completed races only
-        current_date = pd.Timestamp.now()
-        completed_races = schedule[schedule['EventDate'] < current_date].copy()
-        
-        if completed_races.empty:
-            return jsonify({
-                "season": season,
-                "standings": [],
-                "error": f"No completed races found for season {season}"
-            }), 404
-        
-        # Initialize constructor data structures
-        constructor_stats = {}  # {constructor_name: {'points': 0, 'wins': 0}}
-        
-        # Process each completed race
-        races_processed = 0
-        races_failed = 0
-        max_races_to_process = min(len(completed_races), 24)  # Limit to prevent timeout
-        
-        logger.info(f"Processing {max_races_to_process} completed races for constructor standings")
-        
-        for idx, event in completed_races.tail(max_races_to_process).iterrows():
-            try:
-                round_number = event['RoundNumber']
-                event_name = event.get('EventName', f'Round {round_number}')
-                
-                # Load race session (only results, not full telemetry)
-                session = fastf1.get_session(season, round_number, 'R')
-                session.load(laps=False, telemetry=False, weather=False, messages=False)
-                
-                # Get results
-                if hasattr(session, 'results') and not session.results.empty:
-                    for _, result in session.results.iterrows():
-                        try:
-                            team_name = result.get('TeamName', '')
-                            if not team_name or pd.isna(team_name) or team_name == '':
-                                continue
-                            
-                            points = float(result.get('Points', 0)) if pd.notna(result.get('Points')) else 0.0
-                            position = int(result.get('Position', 0)) if pd.notna(result.get('Position')) else 0
-                            
-                            # Initialize constructor if not seen before
-                            if team_name not in constructor_stats:
-                                constructor_stats[team_name] = {
-                                    'points': 0,
-                                    'wins': 0
-                                }
-                            
-                            # Update stats (sum points from both drivers)
-                            constructor_stats[team_name]['points'] += points
-                            if position == 1:
-                                constructor_stats[team_name]['wins'] += 1
-                                
-                        except Exception as result_error:
-                            logger.warning(f"Error processing result for {event_name}: {str(result_error)}")
-                            continue
-                    
-                    races_processed += 1
-                else:
-                    races_failed += 1
-                    
-            except Exception as race_error:
-                logger.warning(f"Error loading race {event.get('EventName', 'Unknown')}: {str(race_error)}")
-                races_failed += 1
-                continue
-        
-        # Check if we got any data
-        if not constructor_stats:
-            return jsonify({
-                "season": season,
-                "standings": [],
-                "error": f"Could not extract constructor data from {races_processed} processed races"
-            }), 500
-        
-        # Sort constructors by points (descending)
-        sorted_constructors = sorted(
-            constructor_stats.items(), 
-            key=lambda x: (x[1]['points'], x[1]['wins']), 
-            reverse=True
-        )
-        
-        # Format standings
-        formatted_standings = []
-        for position, (constructor_name, stats) in enumerate(sorted_constructors, start=1):
-            formatted_standings.append({
-                "position": position,
-                "constructor": constructor_name,
-                "points": stats['points'],
-                "wins": stats['wins'],
+                "standings": formatted_standings
             })
-        
-        logger.info(f"Successfully calculated constructor standings from {races_processed} races")
-        
-        return jsonify({
-            "season": season,
-            "standings": formatted_standings,
-            "races_processed": races_processed,
-            "total_races": len(completed_races)
-        })
+        else:
+            return jsonify({
+                "season": season,
+                "standings": [],
+                "error": f"No standings found for season {season}"
+            }), 404
             
     except Exception as e:
         logger.error(f"Error in get_constructor_standings: {str(e)}")
@@ -411,7 +264,7 @@ def get_constructor_standings():
 def get_race_calendar():
     """Get race calendar for a season"""
     try:
-        season = request.args.get('season', CURRENT_YEAR, type=int)
+        season = request.args.get('season', get_active_season(), type=int)
         
         # Get schedule
         schedule = fastf1.get_event_schedule(season)
@@ -445,8 +298,12 @@ def get_race_calendar():
                 date_str = "TBD"
                 full_date_iso = None
             
+            # Handle round number properly
+            round_num = event.get('RoundNumber')
+            round_int = int(round_num) if pd.notna(round_num) and round_num != '' else idx + 1
+            
             formatted_calendar.append({
-                "round": int(event['RoundNumber']) if pd.notna(event.get('RoundNumber')) else idx + 1,
+                "round": round_int,
                 "name": event['EventName'] if pd.notna(event.get('EventName')) else 'TBD',
                 "location": event['Location'] if pd.notna(event.get('Location')) else 'TBD',
                 "country": event['Country'] if pd.notna(event.get('Country')) else 'TBD',
@@ -469,7 +326,7 @@ def get_race_calendar():
 def get_stats_overview():
     """Get overview statistics"""
     try:
-        season = request.args.get('season', CURRENT_YEAR, type=int)
+        season = request.args.get('season', get_active_season(), type=int)
         
         # Get various stats
         schedule = fastf1.get_event_schedule(season)
@@ -568,15 +425,19 @@ def get_race_details(season, round):
         
         formatted_results = []
         for idx, result in results.iterrows():
+            # Handle position properly
+            position = result.get('Position')
+            position_int = int(position) if pd.notna(position) and position != '' else 0
+            
             formatted_results.append({
-                "position": int(result['Position']),
-                "driver": result['Abbreviation'],
-                "driver_full_name": result['FullName'],
-                "team": result['TeamName'],
-                "points": float(result['Points']) if pd.notna(result['Points']) else 0,
-                "time": str(result['Time']) if pd.notna(result['Time']) else "DNF",
-                "status": result['Status'] if pd.notna(result['Status']) else "Finished",
-                "best_lap_time": str(result['FastestLapTime']) if pd.notna(result['FastestLapTime']) else None,
+                "position": position_int,
+                "driver": result.get('Abbreviation', 'N/A'),
+                "driver_full_name": result.get('FullName', 'N/A'),
+                "team": result.get('TeamName', 'N/A'),
+                "points": float(result['Points']) if pd.notna(result.get('Points')) else 0,
+                "time": str(result['Time']) if pd.notna(result.get('Time')) else "DNF",
+                "status": result.get('Status', 'Finished') if pd.notna(result.get('Status')) else "Finished",
+                "best_lap_time": str(result['FastestLapTime']) if pd.notna(result.get('FastestLapTime')) else None,
             })
         
         return jsonify({
