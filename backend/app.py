@@ -472,17 +472,36 @@ def get_driver_profile(driver_abbr):
         date_of_birth = ''
         
         try:
+            # Try to get driver info from Ergast
             driver_info = ergast.get_driver_info(driver_abbr=driver_abbr)
             if driver_info is not None and not driver_info.empty:
                 driver_row = driver_info.iloc[0]
                 given_name = driver_row.get('givenName', '')
                 family_name = driver_row.get('familyName', '')
-                driver_name = f"{given_name} {family_name}".strip()
+                if given_name or family_name:
+                    driver_name = f"{given_name} {family_name}".strip()
                 driver_number = str(driver_row.get('permanentNumber', '')) if pd.notna(driver_row.get('permanentNumber')) else ''
                 nationality = driver_row.get('nationality', 'Unknown')
                 date_of_birth = driver_row.get('dateOfBirth', '')
+                logger.info(f"Retrieved driver info: {driver_name}, {nationality}")
         except Exception as e:
             logger.warning(f"Could not get driver info from Ergast: {str(e)}")
+            # Try alternative method - get from standings data
+            try:
+                standings = ergast.get_driver_standings(season=season)
+                if standings.content and not standings.content[0].empty:
+                    df = standings.content[0]
+                    driver_row = df[df['driverCode'] == driver_abbr.upper()]
+                    if not driver_row.empty:
+                        row = driver_row.iloc[0]
+                        given_name = row.get('givenName', '')
+                        family_name = row.get('familyName', '')
+                        if given_name or family_name:
+                            driver_name = f"{given_name} {family_name}".strip()
+                        nationality = row.get('nationality', 'Unknown')
+                        driver_number = str(row.get('permanentNumber', '')) if pd.notna(row.get('permanentNumber')) else ''
+            except Exception as e2:
+                logger.debug(f"Alternative method also failed: {str(e2)}")
         
         # Get current season statistics from standings
         current_position = 0
@@ -520,6 +539,17 @@ def get_driver_profile(driver_abbr):
                             # Get team name from most recent race
                             if current_team == 'Unknown':
                                 current_team = result_row.get('TeamName', 'Unknown')
+                            
+                            # Try to get nationality from FastF1 results if not already set
+                            if (nationality == 'Unknown' or nationality == '') and not driver_result.empty:
+                                # Check various possible column names for nationality
+                                for col in ['CountryCode', 'Nationality', 'Country', 'CountryName']:
+                                    if col in result_row.index and pd.notna(result_row.get(col)):
+                                        nat_value = result_row.get(col)
+                                        if nat_value and str(nat_value).strip():
+                                            nationality = str(nat_value).strip()
+                                            logger.info(f"Found nationality from FastF1: {nationality}")
+                                            break
                 except Exception as e:
                     logger.debug(f"Error processing race {event.get('EventName', 'Unknown')}: {str(e)}")
                     continue
@@ -606,6 +636,36 @@ def get_driver_profile(driver_abbr):
             # Construct driver image URL (Formula1.com format)
             driver_slug = driver_name.lower().replace(' ', '-')
             driver_image = f"https://media.formula1.com/content/dam/fom-website/drivers/{driver_abbr[0].upper()}/{driver_abbr.upper()}{driver_name.split()[0][:3].upper() if driver_name.split() else ''}01_{driver_name.replace(' ', '_')}/{driver_slug}.png.transform/2col/image.png"
+            
+            # Driver nationality mapping (fallback if API doesn't provide it)
+            DRIVER_NATIONALITY_MAP = {
+                'NOR': 'British',
+                'VER': 'Dutch',
+                'HAM': 'British',
+                'LEC': 'Monegasque',
+                'SAI': 'Spanish',
+                'PER': 'Mexican',
+                'ALO': 'Spanish',
+                'RUS': 'British',
+                'OCO': 'French',
+                'GAS': 'French',
+                'STR': 'Canadian',
+                'ALB': 'Thai',
+                'BOT': 'Finnish',
+                'ZHO': 'Chinese',
+                'HUL': 'German',
+                'MAG': 'Danish',
+                'TSU': 'Japanese',
+                'RIC': 'Australian',
+                'PIA': 'Australian',
+                'SAR': 'American',
+                'BEAR': 'British',
+            }
+            
+            # Use mapping as final fallback
+            if (nationality == 'Unknown' or nationality == '') and driver_abbr.upper() in DRIVER_NATIONALITY_MAP:
+                nationality = DRIVER_NATIONALITY_MAP[driver_abbr.upper()]
+                logger.info(f"Using nationality mapping: {nationality}")
             
             return jsonify({
                 "driver": {
