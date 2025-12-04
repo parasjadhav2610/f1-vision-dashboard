@@ -456,6 +456,188 @@ def get_race_details(season, round):
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/drivers/<driver_abbr>')
+def get_driver_profile(driver_abbr):
+    """Get detailed driver profile and statistics"""
+    try:
+        season = request.args.get('season', get_active_season(), type=int)
+        
+        # Initialize Ergast API
+        ergast = Ergast()
+        
+        # Get driver information from Ergast
+        driver_name = driver_abbr
+        driver_number = ''
+        nationality = 'Unknown'
+        date_of_birth = ''
+        
+        try:
+            driver_info = ergast.get_driver_info(driver_abbr=driver_abbr)
+            if driver_info is not None and not driver_info.empty:
+                driver_row = driver_info.iloc[0]
+                given_name = driver_row.get('givenName', '')
+                family_name = driver_row.get('familyName', '')
+                driver_name = f"{given_name} {family_name}".strip()
+                driver_number = str(driver_row.get('permanentNumber', '')) if pd.notna(driver_row.get('permanentNumber')) else ''
+                nationality = driver_row.get('nationality', 'Unknown')
+                date_of_birth = driver_row.get('dateOfBirth', '')
+        except Exception as e:
+            logger.warning(f"Could not get driver info from Ergast: {str(e)}")
+        
+        # Get current season statistics from standings
+        current_position = 0
+        current_team = 'Unknown'
+        total_points = 0
+        total_wins = 0
+        total_podiums = 0
+        races_entered = 0
+        
+        try:
+            schedule = fastf1.get_event_schedule(season)
+            completed_races = schedule[schedule['EventDate'] < pd.Timestamp.now()] if schedule is not None and not schedule.empty else pd.DataFrame()
+            
+            # Process completed races to get stats
+            for idx, event in completed_races.iterrows():
+                try:
+                    round_num = event['RoundNumber']
+                    session = fastf1.get_session(season, round_num, 'R')
+                    session.load(laps=False, telemetry=False, weather=False, messages=False)
+                    
+                    if hasattr(session, 'results') and not session.results.empty:
+                        driver_result = session.results[session.results['Abbreviation'] == driver_abbr]
+                        if not driver_result.empty:
+                            races_entered += 1
+                            result_row = driver_result.iloc[0]
+                            points = float(result_row.get('Points', 0)) if pd.notna(result_row.get('Points')) else 0
+                            position = int(result_row.get('Position', 0)) if pd.notna(result_row.get('Position')) else 0
+                            
+                            total_points += points
+                            if position == 1:
+                                total_wins += 1
+                            if position <= 3:
+                                total_podiums += 1
+                            
+                            # Get team name from most recent race
+                            if current_team == 'Unknown':
+                                current_team = result_row.get('TeamName', 'Unknown')
+                except Exception as e:
+                    logger.debug(f"Error processing race {event.get('EventName', 'Unknown')}: {str(e)}")
+                    continue
+            
+            # Try to get position from standings by calling the standings endpoint logic
+            try:
+                from flask import current_app
+                # Get standings data
+                schedule = fastf1.get_event_schedule(season)
+                current_date = pd.Timestamp.now()
+                completed_races = schedule[schedule['EventDate'] < current_date].copy()
+                
+                driver_stats = {}
+                for idx, event in completed_races.tail(min(len(completed_races), 24)).iterrows():
+                    try:
+                        round_number = event['RoundNumber']
+                        session = fastf1.get_session(season, round_number, 'R')
+                        session.load(laps=False, telemetry=False, weather=False, messages=False)
+                        
+                        if hasattr(session, 'results') and not session.results.empty:
+                            for _, result in session.results.iterrows():
+                                driver_abbr_check = result.get('Abbreviation', '')
+                                if driver_abbr_check.upper() == driver_abbr.upper():
+                                    driver_stats[driver_abbr_check] = {
+                                        'points': float(result.get('Points', 0)) if pd.notna(result.get('Points')) else 0,
+                                        'wins': 1 if int(result.get('Position', 0)) == 1 else 0,
+                                        'team': result.get('TeamName', 'Unknown')
+                                    }
+                                    break
+                    except:
+                        continue
+                
+                # Calculate position
+                if driver_abbr in driver_stats:
+                    all_drivers = {}
+                    # Recalculate all drivers for position
+                    for idx, event in completed_races.tail(min(len(completed_races), 24)).iterrows():
+                        try:
+                            round_number = event['RoundNumber']
+                            session = fastf1.get_session(season, round_number, 'R')
+                            session.load(laps=False, telemetry=False, weather=False, messages=False)
+                            
+                            if hasattr(session, 'results') and not session.results.empty:
+                                for _, result in session.results.iterrows():
+                                    driver_abbr_check = result.get('Abbreviation', '')
+                                    if driver_abbr_check not in all_drivers:
+                                        all_drivers[driver_abbr_check] = {'points': 0, 'wins': 0}
+                                    points = float(result.get('Points', 0)) if pd.notna(result.get('Points')) else 0
+                                    all_drivers[driver_abbr_check]['points'] += points
+                                    if int(result.get('Position', 0)) == 1:
+                                        all_drivers[driver_abbr_check]['wins'] += 1
+                        except:
+                            continue
+                    
+                    sorted_drivers = sorted(all_drivers.items(), key=lambda x: (x[1]['points'], x[1]['wins']), reverse=True)
+                    for pos, (abbr, stats) in enumerate(sorted_drivers, start=1):
+                        if abbr.upper() == driver_abbr.upper():
+                            current_position = pos
+                            total_points = stats['points']
+                            total_wins = stats['wins']
+                            break
+            except Exception as e:
+                logger.debug(f"Could not calculate position: {str(e)}")
+            
+            # Get career statistics using Ergast
+            career_stats = {
+                "grand_prix_entered": races_entered,
+                "world_championships": 0,
+                "highest_race_finish": "1",
+                "highest_grid_position": "1",
+            }
+            
+            try:
+                results = ergast.get_driver_results(driver_abbr=driver_abbr)
+                if results is not None and not results.empty:
+                    career_stats["grand_prix_entered"] = len(results['raceName'].unique()) if 'raceName' in results.columns else races_entered
+                    if 'position' in results.columns:
+                        wins = results[results['position'] == '1']
+                        if not wins.empty and 'season' in wins.columns:
+                            career_stats["world_championships"] = len(wins.groupby('season').size())
+            except Exception as e:
+                logger.debug(f"Could not get career stats: {str(e)}")
+            
+            # Construct driver image URL (Formula1.com format)
+            driver_slug = driver_name.lower().replace(' ', '-')
+            driver_image = f"https://media.formula1.com/content/dam/fom-website/drivers/{driver_abbr[0].upper()}/{driver_abbr.upper()}{driver_name.split()[0][:3].upper() if driver_name.split() else ''}01_{driver_name.replace(' ', '_')}/{driver_slug}.png.transform/2col/image.png"
+            
+            return jsonify({
+                "driver": {
+                    "abbreviation": driver_abbr,
+                    "name": driver_name,
+                    "number": driver_number,
+                    "nationality": nationality,
+                    "team": current_team,
+                    "image": driver_image,
+                    "date_of_birth": date_of_birth,
+                },
+                "current_season": {
+                    "season": season,
+                    "position": current_position,
+                    "points": total_points,
+                    "wins": total_wins,
+                    "podiums": total_podiums,
+                    "races_entered": races_entered,
+                },
+                "career": career_stats
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting driver statistics: {str(e)}")
+            logger.error(traceback.format_exc())
+            return jsonify({"error": str(e)}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in get_driver_profile: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Endpoint not found"}), 404

@@ -3,8 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Trophy, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
+import { useNavigate } from "react-router-dom";
 
 const DriverStandings = () => {
+  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["driverStandings"],
     queryFn: async () => {
@@ -16,7 +18,7 @@ const DriverStandings = () => {
     },
   });
 
-  const currentYear = data?.season || new Date().getFullYear();
+  const currentYear = (data as any)?.season || new Date().getFullYear();
 
   if (isLoading) {
     return (
@@ -58,8 +60,8 @@ const DriverStandings = () => {
     );
   }
 
-  const standings = data?.standings || [];
-  const season = data?.season || currentYear;
+  const standings = (data as any)?.standings || [];
+  const season = (data as any)?.season || currentYear;
 
   return (
     <section className="py-16 px-4 bg-racing-track">
@@ -110,7 +112,9 @@ const DriverStandings = () => {
                       </td>
                     </tr>
                   ) : (
-                    standings.map((driver: any) => (
+                    standings.map((driver: any) => {
+                      const driverAbbr = driver.driver || driver.driverCode;
+                      return (
                       <tr
                         key={driver.position}
                         className="border-b border-border/50 hover:bg-primary/5 transition-colors group"
@@ -132,9 +136,31 @@ const DriverStandings = () => {
                         </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold group-hover:text-primary transition-colors">
-                              {driver.driver_full_name || driver.driver}
-                            </span>
+                            <a
+                              href={`/driver/${driverAbbr}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Driver clicked:', driverAbbr, driver);
+                                if (driverAbbr && driverAbbr !== 'N/A') {
+                                  navigate(`/driver/${driverAbbr}`);
+                                } else {
+                                  console.error('Invalid driver abbreviation:', driverAbbr);
+                                }
+                              }}
+                              className="font-bold text-foreground hover:text-primary transition-colors hover:underline text-left no-underline"
+                              style={{ 
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none',
+                                MozUserSelect: 'none',
+                                msUserSelect: 'none',
+                                textDecoration: 'none',
+                                display: 'inline-block'
+                              }}
+                            >
+                              {driver.driver_full_name || driver.driver || driver.driverCode}
+                            </a>
                             {driver.position === 1 && (
                               <Trophy className="h-4 w-4 text-primary animate-pulse-red" />
                             )}
@@ -155,7 +181,8 @@ const DriverStandings = () => {
                           </Badge>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
