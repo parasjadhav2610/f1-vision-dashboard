@@ -19,5 +19,5 @@ RUN mkdir -p /app/cache
 
 EXPOSE 8000
 
-# Use Flask instead of uvicorn since the app uses Flask
-CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8000"]
+# Run the Flask application
+CMD ["python", "app.py"]

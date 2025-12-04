@@ -157,15 +157,66 @@ This application uses the [FastF1](https://github.com/theOehrly/Fast-F1) library
 
 ## How to Run with Docker
 
-### Backend
+### Quick Start (Recommended)
 
-To build and run the backend with Docker:
+The easiest way to run the entire application is using Docker Compose:
+
+```bash
+# Build and start all services (backend + frontend)
+docker-compose up --build
+
+# Or run in detached mode (background)
+docker-compose up -d --build
+```
+
+Once started, access the application:
+- **Frontend**: http://localhost
+- **Backend API**: http://localhost:8000/api
+
+To stop the containers:
+```bash
+docker-compose down
+```
+
+To view logs:
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+### Running Individual Services
+
+#### Backend Only
 
 ```bash
 cd backend
 docker build -t f1-backend .
 docker run -p 8000:8000 f1-backend
 ```
+
+#### Frontend Only
+
+```bash
+cd frontend
+docker build -t f1-frontend .
+docker run -p 80:80 f1-frontend
+```
+
+**Note**: If running frontend separately, make sure the backend is accessible at `http://localhost:8000/api` or update the nginx configuration.
+
+### Docker Compose Services
+
+The `docker-compose.yml` file includes:
+- **Backend**: Flask API on port 8000
+- **Frontend**: React app served by Nginx on port 80
+- **Volume**: Persistent cache for FastF1 data (`./backend/cache`)
+- **Health Checks**: Automatic health monitoring for both services
+
+For more detailed Docker deployment information, see [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md).
 
 
 ## Acknowledgments
