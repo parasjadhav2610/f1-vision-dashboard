@@ -1,19 +1,23 @@
-# Use official Python image
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements if exists, install dependencies
-COPY requirements.txt ./
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && pip install --no-cache-dir -r requirements.txt || true
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Expose port 8000
+# Create cache directory
+RUN mkdir -p /app/cache
+
 EXPOSE 8000
 
-# Run the app
-CMD ["python", "app.py"]
+# Use Flask instead of uvicorn since the app uses Flask
+CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8000"]

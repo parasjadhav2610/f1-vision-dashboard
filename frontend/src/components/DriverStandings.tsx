@@ -5,17 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
 
 const DriverStandings = () => {
-  const currentYear = new Date().getFullYear();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["driverStandings", currentYear],
+    queryKey: ["driverStandings"],
     queryFn: async () => {
-      const response = await f1Api.getDriverStandings(currentYear);
+      const response = await f1Api.getDriverStandings();
       if (response.error) {
         throw new Error(response.error);
       }
       return response.data;
     },
   });
+
+  const currentYear = data?.season || new Date().getFullYear();
 
   if (isLoading) {
     return (

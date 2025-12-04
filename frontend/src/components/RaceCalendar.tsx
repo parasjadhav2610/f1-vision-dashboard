@@ -5,17 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
 
 const RaceCalendar = () => {
-  const currentYear = new Date().getFullYear();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["raceCalendar", currentYear],
+    queryKey: ["raceCalendar"],
     queryFn: async () => {
-      const response = await f1Api.getRaceCalendar(currentYear);
+      const response = await f1Api.getRaceCalendar();
       if (response.error) {
         throw new Error(response.error);
       }
       return response.data;
     },
   });
+
+  const currentYear = data?.season || new Date().getFullYear();
 
   if (isLoading) {
     return (
