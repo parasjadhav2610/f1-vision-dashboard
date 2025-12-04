@@ -5,6 +5,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
 
+// Helper function to get driver image URL
+const getDriverImageUrl = (abbreviation?: string, name?: string): string => {
+  if (!abbreviation) {
+    return 'https://placehold.co/600x600/101010/DC0000?text=DR';
+  }
+  
+  // Try local image first (if you've downloaded images, place them in public/drivers/)
+  // Format: NOR.png, VER.png, etc.
+  const localImage = `/drivers/${abbreviation.toUpperCase()}.png`;
+  
+  // For now, return placeholder - you can add actual images later
+  // When you add images, they should be in frontend/public/drivers/ directory
+  // and named like: NOR.png, VER.png, HAM.png, etc.
+  return localImage;
+};
+
 const DriverProfile = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -48,9 +64,25 @@ const DriverProfile = () => {
   const currentSeason = (data as any)?.current_season || {};
   const career = (data as any)?.career || {};
 
-  const nameParts = driver.name ? driver.name.split(' ') : [driver.abbreviation || 'Driver'];
-  const firstName = nameParts[0] || '';
-  const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+  // Fix name parsing - handle cases where name might be empty or just abbreviation
+  let firstName = '';
+  let lastName = '';
+  if (driver.name && driver.name.trim() && driver.name !== driver.abbreviation) {
+    const nameParts = driver.name.trim().split(/\s+/);
+    if (nameParts.length >= 2) {
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ');
+    } else if (nameParts.length === 1) {
+      firstName = nameParts[0];
+      lastName = '';
+    }
+  }
+  
+  // Fallback to abbreviation if name is not available
+  if (!firstName && driver.abbreviation) {
+    firstName = driver.abbreviation;
+    lastName = '';
+  }
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-sans selection:bg-red-600 selection:text-white">
@@ -73,15 +105,20 @@ const DriverProfile = () => {
           {/* Driver Photo & Key Info */}
           <div className="lg:col-span-5 relative">
              <div className="relative z-10">
-                <div className="absolute -top-10 -left-10 text-[12rem] font-black text-white/5 select-none leading-none">
-                  {driver.number || '?'}
+                {/* Large abbreviation watermark */}
+                <div className="absolute -top-10 -left-10 text-[12rem] font-black text-red-600/20 select-none leading-none">
+                  {driver.abbreviation || driver.number || '?'}
                 </div>
                 <img 
-                  src={driver.image || `https://placehold.co/600x600/101010/DC0000?text=${driver.abbreviation || 'DR'}`} 
-                  alt={driver.name || 'Driver'} 
+                  src={getDriverImageUrl(driver.abbreviation, driver.name)} 
+                  alt={driver.name || driver.abbreviation || 'Driver'} 
                   className="w-full h-auto object-cover relative z-10 drop-shadow-2xl"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://placehold.co/600x600/101010/DC0000?text=${driver.abbreviation || 'DR'}`;
+                    // Fallback to placeholder if local image doesn't exist
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('placehold.co')) {
+                      target.src = `https://placehold.co/600x600/101010/DC0000?text=${driver.abbreviation || 'DR'}`;
+                    }
                   }}
                 />
              </div>
@@ -89,11 +126,21 @@ const DriverProfile = () => {
              {/* Name Plate */}
              <div className="mt-4 border-l-4 border-red-600 pl-6">
                 <h1 className="text-5xl md:text-6xl font-black uppercase tracking-tighter italic leading-none">
-                  {firstName}<br/>{lastName}
+                  {firstName && lastName ? (
+                    <>
+                      {firstName}<br/>{lastName}
+                    </>
+                  ) : firstName ? (
+                    firstName
+                  ) : (
+                    driver.abbreviation || 'Driver'
+                  )}
                 </h1>
                 <div className="flex items-center gap-3 mt-4">
                   <Flag className="h-6 w-6 text-white" />
-                  <span className="text-lg font-medium tracking-widest uppercase">{driver.nationality || 'Unknown'}</span>
+                  <span className="text-lg font-medium tracking-widest uppercase">
+                    {driver.nationality && driver.nationality !== 'Unknown' ? driver.nationality : 'Unknown'}
+                  </span>
                 </div>
              </div>
           </div>

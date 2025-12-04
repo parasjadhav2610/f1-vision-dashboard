@@ -5,8 +5,13 @@ import DriverStandings from "@/components/DriverStandings";
 import RaceCalendar from "@/components/RaceCalendar";
 import BeginnersGuide from "@/components/BeginnersGuide";
 
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Trophy, ArrowRight } from 'lucide-react';
+
 const Index = () => {
   return (
+    
     <div className="min-h-screen bg-background">
       <Hero />
       <div id="content">
