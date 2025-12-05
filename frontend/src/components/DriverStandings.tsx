@@ -3,6 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Trophy, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
+import { Link } from "react-router-dom";
+import { constructors } from "@/data/constructors";
+
+const teamNameToId = (teamName: string): string => {
+  const team = constructors.find(c => c.name === teamName);
+  return team?.id ?? '';
+};
 
 const DriverStandings = () => {
   const { data, isLoading, error } = useQuery({
@@ -131,17 +138,31 @@ const DriverStandings = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold group-hover:text-primary transition-colors">
-                              {driver.driver_full_name || driver.driver}
-                            </span>
-                            {driver.position === 1 && (
-                              <Trophy className="h-4 w-4 text-primary animate-pulse-red" />
-                            )}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold group-hover:text-primary transition-colors">
+                                {driver.driver_full_name || driver.driver}
+                              </span>
+                              {driver.position === 1 && (
+                                <Trophy className="h-4 w-4 text-primary animate-pulse-red" />
+                              )}
+                            </div>
+                            {/* Show team on mobile only - hidden on md+ where Team column is visible */}
+                            <Link
+                              to={`/constructors/${teamNameToId(driver.team)}`}
+                              className="text-xs text-muted-foreground hover:text-primary transition-colors md:hidden"
+                            >
+                              {driver.team}
+                            </Link>
                           </div>
                         </td>
                         <td className="py-4 px-6 text-muted-foreground hidden md:table-cell">
-                          {driver.team}
+                          <Link
+                            to={`/constructors/${teamNameToId(driver.team)}`}
+                            className="text-primary hover:underline transition-colors"
+                          >
+                            {driver.team}
+                          </Link>
                         </td>
                         <td className="py-4 px-4 text-center font-mono hidden sm:table-cell">
                           {driver.wins || 0}
