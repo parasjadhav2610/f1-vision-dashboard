@@ -8,6 +8,7 @@ import RaceDetail from "./pages/RaceDetail";
 import NotFound from "./pages/NotFound";
 import Constructors from "./pages/Constructors";
 import ConstructorDetail from "./pages/ConstructorDetail";
+import DriverProfile from "./pages/DriverProfile";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/driver/:id" element={<DriverProfile />} />
           <Route path="/race/:season/:round" element={<RaceDetail />} />
           <Route path="/constructors" element={<Constructors />} />
           <Route path="/constructors/:id" element={<ConstructorDetail />} />

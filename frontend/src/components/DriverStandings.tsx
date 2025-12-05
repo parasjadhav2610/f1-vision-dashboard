@@ -12,6 +12,7 @@ const teamNameToId = (teamName: string): string => {
 };
 
 const DriverStandings = () => {
+  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["driverStandings"],
     queryFn: async () => {
@@ -23,7 +24,7 @@ const DriverStandings = () => {
     },
   });
 
-  const currentYear = data?.season || new Date().getFullYear();
+  const currentYear = (data as any)?.season || new Date().getFullYear();
 
   if (isLoading) {
     return (
@@ -65,8 +66,8 @@ const DriverStandings = () => {
     );
   }
 
-  const standings = data?.standings || [];
-  const season = data?.season || currentYear;
+  const standings = (data as any)?.standings || [];
+  const season = (data as any)?.season || currentYear;
 
   return (
     <section className="py-16 px-4 bg-racing-track">
@@ -117,7 +118,9 @@ const DriverStandings = () => {
                       </td>
                     </tr>
                   ) : (
-                    standings.map((driver: any) => (
+                    standings.map((driver: any) => {
+                      const driverAbbr = driver.driver || driver.driverCode;
+                      return (
                       <tr
                         key={driver.position}
                         className="border-b border-border/50 hover:bg-primary/5 transition-colors group"
@@ -176,7 +179,8 @@ const DriverStandings = () => {
                           </Badge>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

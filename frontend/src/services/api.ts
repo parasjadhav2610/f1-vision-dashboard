@@ -66,6 +66,12 @@ class F1ApiService {
     return this.fetchData(`/drivers/${driverId}`);
   }
 
+  // Driver profile with statistics
+  async getDriverProfile(driverAbbr: string, season?: number) {
+    const seasonParam = season ? `?season=${season}` : "";
+    return this.fetchData(`/drivers/${driverAbbr}${seasonParam}`);
+  }
+
   // Lap records
   async getLapRecords(circuitId?: string) {
     const circuitParam = circuitId ? `?circuit=${circuitId}` : "";
