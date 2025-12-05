@@ -12,7 +12,6 @@ const teamNameToId = (teamName: string): string => {
 };
 
 const DriverStandings = () => {
-  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["driverStandings"],
     queryFn: async () => {

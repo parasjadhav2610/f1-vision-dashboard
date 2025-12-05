@@ -81,26 +81,6 @@ const ConstructorDetail: React.FC = () => {
         </Card>
       </div>
 
-      {/* Key Personnel */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Key Personnel</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            <div className="flex items-center p-2 rounded-md bg-muted">
-              <span className="text-sm font-medium">Principal: {team.teamPrincipal || 'N/A'}</span>
-            </div>
-            <div className="flex items-center p-2 rounded-md bg-muted">
-              <span className="text-sm font-medium">Technical Director: {team.technicalDirector || 'N/A'}</span>
-            </div>
-            <div className="flex items-center p-2 rounded-md bg-muted">
-              <span className="text-sm font-medium">Head Aero: {team.headOfAerodynamics || 'N/A'}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Drivers Section */}
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Drivers</h2>
