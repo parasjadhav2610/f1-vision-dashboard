@@ -16,7 +16,6 @@ const teamNameToId = (teamName: string): string => {
 >>>>>>> 9182bec (Add detailed pages for F1 constructors)
 
 const DriverStandings = () => {
-  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["driverStandings"],
     queryFn: async () => {
