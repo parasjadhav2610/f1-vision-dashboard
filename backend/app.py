@@ -413,33 +413,49 @@ def get_stats_overview():
 def get_race_details(season, round):
     """Get detailed race information"""
     try:
-        session = fastf1.get_session(season, round, 'R')
-        session.load()
+        # Validate round parameter
+        if round <= 0:
+            return jsonify({"error": "Invalid round number"}), 400
+
+        # Get schedule and ensure round exists
+        schedule = fastf1.get_event_schedule(season)
+        if schedule is None or schedule.empty:
+            return jsonify({"error": f"No schedule found for season {season}"}), 404
+
+        if not any(schedule['RoundNumber'] == round):
+            return jsonify({"error": f"Round {round} not found for season {season}"}), 404
+
+        # Proceed to load session
+        try:
+            session = fastf1.get_session(season, round, 'R')
+            session.load()
+        except Exception as e:
+            logger.error(f"Could not load session for season={season} round={round}: {e}")
+            return jsonify({"error": "Session data not available for this race"}), 503
         
         # Get event info
-        schedule = fastf1.get_event_schedule(season)
-        event = schedule[schedule['RoundNumber'] == round].iloc[0] if not schedule.empty else None
+        event = schedule[schedule['RoundNumber'] == round].iloc[0]
         
         # Get results
-        results = session.results
-        
+        results = session.results if hasattr(session, 'results') else None
         formatted_results = []
-        for idx, result in results.iterrows():
-            # Handle position properly
-            position = result.get('Position')
-            position_int = int(position) if pd.notna(position) and position != '' else 0
-            
-            formatted_results.append({
-                "position": position_int,
-                "driver": result.get('Abbreviation', 'N/A'),
-                "driver_full_name": result.get('FullName', 'N/A'),
-                "team": result.get('TeamName', 'N/A'),
-                "points": float(result['Points']) if pd.notna(result.get('Points')) else 0,
-                "time": str(result['Time']) if pd.notna(result.get('Time')) else "DNF",
-                "status": result.get('Status', 'Finished') if pd.notna(result.get('Status')) else "Finished",
-                "best_lap_time": str(result['FastestLapTime']) if pd.notna(result.get('FastestLapTime')) else None,
-            })
-        
+        if results is not None:
+            for idx, result in results.iterrows():
+                # Handle position properly
+                position = result.get('Position')
+                position_int = int(position) if pd.notna(position) and position != '' else 0
+
+                formatted_results.append({
+                    "position": position_int,
+                    "driver": result.get('Abbreviation', 'N/A'),
+                    "driver_full_name": result.get('FullName', 'N/A'),
+                    "team": result.get('TeamName', 'N/A'),
+                    "points": float(result['Points']) if pd.notna(result.get('Points')) else 0,
+                    "time": str(result['Time']) if pd.notna(result.get('Time')) else "DNF",
+                    "status": result.get('Status', 'Finished') if pd.notna(result.get('Status')) else "Finished",
+                    "best_lap_time": str(result['FastestLapTime']) if 'FastestLapTime' in result.index and pd.notna(result.get('FastestLapTime')) else None,
+                })
+
         return jsonify({
             "season": season,
             "round": round,

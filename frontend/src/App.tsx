@@ -6,7 +6,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import RaceDetail from "./pages/RaceDetail";
 import NotFound from "./pages/NotFound";
+<<<<<<< HEAD
 import DriverProfile from "./pages/DriverProfile";
+=======
+import Constructors from "./pages/Constructors";
+import ConstructorDetail from "./pages/ConstructorDetail";
+>>>>>>> 9182bec (Add detailed pages for F1 constructors)
 
 const queryClient = new QueryClient();
 
@@ -20,6 +25,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/driver/:id" element={<DriverProfile />} />
           <Route path="/race/:season/:round" element={<RaceDetail />} />
+          <Route path="/constructors" element={<Constructors />} />
+          <Route path="/constructors/:id" element={<ConstructorDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
