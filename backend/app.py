@@ -676,6 +676,13 @@ def get_driver_profile(driver_abbr):
                 'PIA': 'Australian',
                 'SAR': 'American',
                 'BEAR': 'British',
+                'LAW': 'New Zealander',
+                'DOO': 'Australian',
+                'COL': 'Argentine',
+                'BOR': 'Brazilian',
+                'BEA': 'British',
+                'HAD': 'French',
+                'ANT': 'Italian',
             }
             
             # Use mapping as final fallback
