@@ -4,6 +4,13 @@ import { Trophy, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { f1Api } from "@/services/api";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { constructors } from "@/data/constructors";
+
+const teamNameToId = (teamName: string): string => {
+  const team = constructors.find(c => c.name === teamName);
+  return team?.id ?? '';
+};
 
 const DriverStandings = () => {
   const navigate = useNavigate();
@@ -115,72 +122,85 @@ const DriverStandings = () => {
                     standings.map((driver: any) => {
                       const driverAbbr = driver.driver || driver.driverCode;
                       return (
-                      <tr
-                        key={driver.position}
-                        className="border-b border-border/50 hover:bg-primary/5 transition-colors group"
-                      >
-                        <td className="py-4 px-4">
-                          <div
-                            className={`flex h-10 w-10 items-center justify-center rounded-lg font-black ${
-                              driver.position === 1
+                        <tr
+                          key={driver.position}
+                          className="border-b border-border/50 hover:bg-primary/5 transition-colors group"
+                        >
+                          <td className="py-4 px-4">
+                            <div
+                              className={`flex h-10 w-10 items-center justify-center rounded-lg font-black ${driver.position === 1
                                 ? "bg-primary text-primary-foreground shadow-racing"
                                 : driver.position === 2
-                                ? "bg-muted text-foreground"
-                                : driver.position === 3
-                                ? "bg-racing-metallic text-foreground"
-                                : "bg-secondary text-foreground"
-                            }`}
-                          >
-                            {driver.position}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/driver/${driverAbbr}`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('Driver clicked:', driverAbbr, driver);
-                                if (driverAbbr && driverAbbr !== 'N/A') {
-                                  navigate(`/driver/${driverAbbr}`);
-                                } else {
-                                  console.error('Invalid driver abbreviation:', driverAbbr);
-                                }
-                              }}
-                              className="font-bold text-foreground hover:text-primary transition-colors hover:underline text-left no-underline"
-                              style={{ 
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none',
-                                MozUserSelect: 'none',
-                                msUserSelect: 'none',
-                                textDecoration: 'none',
-                                display: 'inline-block'
-                              }}
+                                  ? "bg-muted text-foreground"
+                                  : driver.position === 3
+                                    ? "bg-racing-metallic text-foreground"
+                                    : "bg-secondary text-foreground"
+                                }`}
                             >
-                              {driver.driver_full_name || driver.driver || driver.driverCode}
-                            </a>
-                            {driver.position === 1 && (
-                              <Trophy className="h-4 w-4 text-primary animate-pulse-red" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-muted-foreground hidden md:table-cell">
-                          {driver.team}
-                        </td>
-                        <td className="py-4 px-4 text-center font-mono hidden sm:table-cell">
-                          {driver.wins || 0}
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <Badge
-                            variant="outline"
-                            className="border-primary/50 text-primary font-bold"
-                          >
-                            {driver.points}
-                          </Badge>
-                        </td>
-                      </tr>
+                              {driver.position}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={`/driver/${driverAbbr}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    console.log('Driver clicked:', driverAbbr, driver);
+                                    if (driverAbbr && driverAbbr !== 'N/A') {
+                                      navigate(`/driver/${driverAbbr}`);
+                                    } else {
+                                      console.error('Invalid driver abbreviation:', driverAbbr);
+                                    }
+                                  }}
+                                  className="font-bold text-foreground hover:text-primary transition-colors hover:underline text-left no-underline"
+                                  style={{
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    WebkitUserSelect: 'none',
+                                    MozUserSelect: 'none',
+                                    msUserSelect: 'none',
+                                    textDecoration: 'none',
+                                    display: 'inline-block'
+                                  }}
+                                >
+                                  {driver.driver_full_name || driver.driver || driver.driverCode}
+                                </a>
+                                {driver.position === 1 && (
+                                  <Trophy className="h-4 w-4 text-primary animate-pulse-red" />
+                                )}
+                              </div>
+                              {/* Show team on mobile only - hidden on md+ where Team column is visible */}
+                              <Link
+                                to={`/constructors/${teamNameToId(driver.team)}`}
+                                className="text-xs text-muted-foreground hover:text-primary transition-colors md:hidden"
+                              >
+                                {driver.team}
+                              </Link>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-muted-foreground hidden md:table-cell">
+                            <Link
+                              to={`/constructors/${teamNameToId(driver.team)}`}
+                              className="text-primary hover:underline transition-colors"
+                            >
+                              {driver.team}
+                            </Link>
+                          </td>
+                          <td className="py-4 px-4 text-center font-mono hidden sm:table-cell">
+                            {driver.wins || 0}
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <Badge
+                              variant="outline"
+                              className="border-primary/50 text-primary font-bold"
+                            >
+                              {driver.points}
+                            </Badge>
+                          </td>
+                        </tr>
                       );
                     })
                   )}
