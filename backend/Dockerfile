@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip install ddtrace
 
 # Copy application code
 COPY . .
@@ -17,7 +17,7 @@ COPY . .
 # Create cache directory
 RUN mkdir -p /app/cache
 
-EXPOSE 8000
+EXPOSE 5000
 
 # Run the Flask application
 CMD ["python", "app.py"]
