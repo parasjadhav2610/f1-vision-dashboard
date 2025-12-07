@@ -2,7 +2,9 @@
 // This file provides a structured way to make API calls to your Python backend
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "/api";
+  window.env?.API_BASE_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "/api";
 
 interface ApiResponse<T> {
   data: T;
