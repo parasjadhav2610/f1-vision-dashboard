@@ -57,6 +57,3 @@ jobs:
       - name: Force Update Backend
         run: |
           aws ecs update-service --cluster f1-cluster --service f1-backend-service --force-new-deployment
-      - name: Force Update Frontend
-        run: |
-          aws ecs update-service --cluster f1-cluster --service f1-frontend-service --force-new-deployment
