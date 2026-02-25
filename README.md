@@ -1,6 +1,8 @@
-# F1 Vision Dashboard
-
 The F1 Data Insights project aims leverages the FastF1 Python API to provide users with comprehensive Formula 1 data with strong emphasis on DevSecOps practices.
+
+## Architecture
+
+![F1 Flow Diagram](F1_flow_diagram.png)
 
 ## Features
 
@@ -69,7 +71,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The backend will start on `http://localhost:8000`
+The backend will start on `http://localhost:5000`
 
 **Note**: FastF1 will cache data in a `./cache` directory. The first time you request data for a season, it may take some time to download and cache the data.
 
@@ -114,6 +116,7 @@ The backend provides the following REST API endpoints:
 - `GET /api/calendar?season=2024` - Get race calendar for a season
 - `GET /api/stats/overview?season=2024` - Get overview statistics
 - `GET /api/races/<season>/<round>` - Get detailed race information
+- `GET /api/driver/<driver_abbr>` - Get detailed driver profile and statistics
 
 ## Project Structure
 
@@ -171,7 +174,7 @@ docker-compose up -d --build
 
 Once started, access the application:
 - **Frontend**: http://localhost
-- **Backend API**: http://localhost:8000/api
+- **Backend API**: http://localhost:5000/api
 
 To stop the containers:
 ```bash
@@ -211,7 +214,7 @@ docker run -p 80:80 f1-frontend
 ### Docker Compose Services
 
 The `docker-compose.yml` file includes:
-- **Backend**: Flask API on port 8000
+- **Backend**: Flask API on port 5000
 - **Frontend**: React app served by Nginx on port 80
 - **Volume**: Persistent cache for FastF1 data (`./backend/cache`)
 - **Health Checks**: Automatic health monitoring for both services
